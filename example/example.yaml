@@ -1,0 +1,30 @@
+__init__:
+  ntprocess: 1
+  ntthreads: 1
+SCRIPTS: example
+scripts:
+  RunPython:
+    path: ${SCRIPTS}/example.py
+    function: calculate_and_print
+    args:
+      start: 0
+      step: 1
+      stop: 10
+  RunJulia:
+    path: ${SCRIPTS}/example.jl
+    function: calculate_and_print
+    args:
+      start: 0
+      step: 1
+      stop: 10
+  RunR:
+    path: ${SCRIPTS}/example.r
+    function: calculate_and_print
+    args:
+      start: 0
+      step: 1
+      stop: 10
+workflow:
+  - RunPython
+  - RunJulia
+  - RunR

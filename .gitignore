@@ -1,0 +1,7 @@
+.git
+.deprecated
+example/__pycache__
+FrameworkAPI/__pycache__
+FrameworkAPI.egg-info
+build
+tester.ipynb
