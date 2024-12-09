@@ -121,13 +121,12 @@ class FrameworkAPI:
             logger.error(f"Error merging configurations: {e}")
             raise
 
-    def run_script(self, script_name, function_name=None):
+    def run_script(self, script_name):
         """
         Execute a single script based on its configuration. Optionally run a specific function in the script.
 
         Args:
             script_name (str): Name of the script to execute (as defined in the configuration).
-            function_name (str): Name of the specific function to run inside the script.
 
         Raises:
             KeyError: If the script name is not found in the configuration.
@@ -142,6 +141,7 @@ class FrameworkAPI:
             script_info = scripts[script_name]
             script_path = os.path.relpath(script_info.get(
                 'path'), os.getcwd()).replace('\\', '/')
+            function_name = script_info.get('function', None)
             args = script_info.get('args', {})
 
             if not script_path:
