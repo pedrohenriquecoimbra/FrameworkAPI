@@ -170,7 +170,8 @@ class FrameworkAPI:
                                f'include("{script_path}"); {function_name}({args_})']
             else:
                 # Construct the command
-                command = [self._get_interpreter(script_path), script_path]
+                command = [self._get_interpreter(
+                    script_path), script_path] if self._get_interpreter(script_path) else [script_path]
                 for key, value in args.items():
                     command.extend([f"--{key}", str(value)])
 
@@ -240,6 +241,8 @@ class FrameworkAPI:
             return 'Rscript'
         elif ext == '.jl':
             return 'julia'
+        elif ext == '.exe':
+            return None
         else:
             raise ValueError(
                 f"Unsupported script type for file '{script_path}'.")
