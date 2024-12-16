@@ -3,6 +3,7 @@ from string import Template
 import yaml
 import subprocess
 import logging
+import platform
 logger = logging.getLogger(__name__)
 
 
@@ -159,13 +160,13 @@ class FrameworkAPI:
                 ext = os.path.splitext(script_path)[-1].lower()
                 if ext == '.py':
                     command = [
-                        "python", "-c" f'import {spath} as f; f.{function_name}({args_})']
+                        self._get_interpreter(script_path), "-c" f'import {spath} as f; f.{function_name}({args_})']
                 elif ext == '.r':
-                    command = ["Rscript", "-e",
-                                f'source("{script_path}"); {function_name}({args_})']
+                    command = [self._get_interpreter(script_path), "-e",
+                               f'source("{script_path}"); {function_name}({args_})']
                 elif ext == '.jl':
-                    command = ["julia", "-e",
-                                f'include("{script_path}"); {function_name}({args_})']
+                    command = [self._get_interpreter(script_path), "-e",
+                               f'include("{script_path}"); {function_name}({args_})']
             else:
                 # Construct the command
                 command = [self._get_interpreter(script_path), script_path]
@@ -222,8 +223,17 @@ class FrameworkAPI:
             ValueError: If the file extension is unsupported.
         """
         ext = os.path.splitext(script_path)[-1].lower()
+        system = platform.system()
+
         if ext == '.py':
-            return 'python'
+            if system == 'Linux':
+                return 'python3'
+            elif system == 'Windows':
+                return 'python'
+            elif system == 'Darwin':  # macOS
+                return 'python3'
+            else:
+                return 'python'
         elif ext == '.r':
             return 'Rscript'
         elif ext == '.jl':
