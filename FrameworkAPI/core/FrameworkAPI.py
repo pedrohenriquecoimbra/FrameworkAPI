@@ -123,7 +123,7 @@ class FrameworkAPI:
             logger.error(f"Error merging configurations: {e}")
             raise
 
-    def run_script(self, script_name):
+    def run_script(self, script_name, background=False):
         """
         Execute a single script based on its configuration. Optionally run a specific function in the script.
 
@@ -188,7 +188,8 @@ class FrameworkAPI:
             for line in process.stderr:
                 logger.error(line.decode('utf8').strip())
 
-            process.wait()
+            if not background:
+                process.wait()
             if process.returncode != 0:
                 logger.error(
                     f"Script '{script_name}' exited with code {process.returncode}.")
@@ -196,14 +197,14 @@ class FrameworkAPI:
             logger.error(f"Error executing script '{script_name}': {e}")
             raise
 
-    def run_workflow(self):
+    def run_workflow(self, background=False):
         """
         Execute all scripts defined in the workflow in sequence.
         """
         try:
             workflow = self.config.get('workflow', [])
             for script_name in workflow:
-                self.run_script(script_name)
+                self.run_script(script_name, background=background)
             logger.info("Workflow executed successfully.")
         except Exception as e:
             logger.error(f"Error executing workflow: {e}")
