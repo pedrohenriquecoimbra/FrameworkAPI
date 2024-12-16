@@ -139,8 +139,11 @@ class FrameworkAPI:
                     f"Script '{script_name}' not found in configuration.")
 
             script_info = scripts[script_name]
-            script_path = os.path.relpath(script_info.get(
-                'path'), os.getcwd()).replace('\\', '/')
+            script_path = script_info.get('path')
+            if os.path.isabs(script_path):
+                script_path = os.path.relpath(
+                    script_path, os.getcwd())
+            script_path = script_path.replace('\\', '/')
             function_name = script_info.get('function', None)
             args = script_info.get('args', {})
 
