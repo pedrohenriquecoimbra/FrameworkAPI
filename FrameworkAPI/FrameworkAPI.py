@@ -23,7 +23,8 @@ class FrameworkAPI:
         self.config_path = config_path
         self.raw_config = self._load_config(raw=True)
         self.config = self._load_config()
-        if log_file: self._setup_logging(log_file)
+        if log_file:
+            self._setup_logging(log_file)
 
     def _setup_logging(self, log_file):
         """
