@@ -156,7 +156,7 @@ class FrameworkAPI:
                 # Run a specific function in the script
                 spath = script_path.rsplit('.', 1)[0].replace(
                     '\\', '.').replace('/', '.')
-                args_ = ', '.join([f"{k}={v}" for k, v in args.items()])
+                args_ = ', '.join([f"{k}='{v}'" if isinstance(v, str) else f"{k}={v}" for k, v in args.items()])
                 ext = os.path.splitext(script_path)[-1].lower()
                 if ext == '.py':
                     command = [
