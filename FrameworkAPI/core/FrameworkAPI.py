@@ -1,9 +1,13 @@
 import os
+import ast
 from string import Template
 import yaml
 import subprocess
+import threading
 import logging
 import platform
+import time
+import copy
 logger = logging.getLogger(__name__)
 
 
@@ -12,19 +16,67 @@ class FrameworkAPI:
     FrameworkAPI: A class for managing and executing scripts based on YAML configurations.
     """
 
-    def __init__(self, config_path, log_file=None):
+    def __init__(self, config_path=None, config=None, log_file=None):
         """
-        Initialize the FrameworkAPI with a YAML configuration file and set up logging.
+        Initialize the FrameworkAPI with a YAML configuration file or a preloaded configuration.
+        Sets up logging if a log file is provided.
 
         Args:
-            config_path (str): Path to the YAML configuration file.
-            log_file (str): Path to the log file for error and debug messages.
+            config_path (str, optional): Path to the YAML configuration file. Defaults to None.
+            config (dict, optional): Preloaded configuration dictionary. Defaults to None.
+            log_file (str, optional): Path to the log file for logging errors and debug messages. Defaults to None.
+
+        Raises:
+            ValueError: If neither 'config' nor 'config_path' is provided.
         """
         self.config_path = config_path
-        self.raw_config = self._load_config(raw=True)
-        self.config = self._load_config()
+
+        # Determine configuration source
+        if config:
+            self.raw_config = config
+        elif config_path:
+            self.raw_config = self._load_config(raw=True)
+        elif isinstance(config, dict):
+            self.raw_config = config
+        else:
+            logger.error("Initialization failed: Both 'config' and 'config_path' are missing. "
+                         "Provide at least one configuration source.")
+            raise ValueError(
+                "Configuration source is required: Pass either 'config' or 'config_path'.")
+
+        # Resolve references in the configuration
+        self.config = self._resolve_references(self.raw_config)
+
+        # Set up logging if a log file is provided
         if log_file:
             self._setup_logging(log_file)
+
+    def load_multiple_frameworks(self, config_path=[], config=[]):
+        try:
+            # Load multiple configurations from different sources
+            if not config_path and not config:
+                raise ValueError("No configurations provided to load.")
+            if isinstance(config_path, str):
+                config_path = [config_path]
+            if isinstance(config, dict):
+                config = [config]
+            for c in config_path:
+                try:
+                    self = FrameworkAPI.merge(
+                        self, FrameworkAPI(config_path=c))
+                except Exception as e:
+                    logger.error(f"Error loading configuration from {c}: {e}")
+            for c in config:
+                try:
+                    self = FrameworkAPI.merge(self, FrameworkAPI(config=c))
+                except Exception as e:
+                    logger.error(f"Error loading configuration: {e}")
+
+            self.config = self._resolve_references(self.raw_config)
+            logger.info("Multiple configurations loaded successfully.")
+        except Exception as e:
+            logger.error(f"Error loading multiple configurations: {e}")
+        return self
 
     def _setup_logging(self, log_file):
         """
@@ -77,6 +129,8 @@ class FrameworkAPI:
         Returns:
             dict: Configuration with resolved references.
         """
+        config = self._resolve_shortkeys(config)
+
         try:
             def resolve(obj, context=None):
                 if context is None:
@@ -95,7 +149,63 @@ class FrameworkAPI:
             logger.error(f"Error resolving references in configuration: {e}")
             raise
 
-    def merge(self, other, overwrite=True):
+    def _resolve_shortkeys(self, config, shortkeys=None):
+        """
+        Resolve coded references in the YAML configuration using eval of string.
+
+        Args:
+            config (dict): The raw YAML configuration.
+
+        Returns:
+            dict: Configuration with resolved coded references.
+        """
+        try:
+            def resolve(obj, key=None):
+                if isinstance(obj, str) and obj.strip().startswith('eval:'):
+                    expr = obj.strip()[5:].strip()
+
+                    try:
+                        # Prepare a restricted environment for evaluation
+                        allowed_globals = {
+                            "__builtins__": {
+                                "True": True,
+                                "False": False,
+                                "None": None,
+                                "len": len,
+                                "range": range,
+                                "str": str,
+                                "int": int,
+                                "float": float,
+                                "print": print,
+                                "__import__": __import__,
+                            }}
+                        allowed_locals = {}
+
+                        # Dynamically import required libraries
+                        if 'import ' in expr:
+                            for codeline in expr.split(';'):
+                                exec(codeline.strip(),
+                                     allowed_globals, allowed_locals)
+                                value = allowed_locals.get(key, str(obj))
+                        else:
+                            # Safely evaluate the expression
+                            value = ast.literal_eval(expr)
+
+                        # Store the resolved value in the configuration
+                        return value
+                    except (ValueError, SyntaxError) as e:
+                        print(f"Error evaluating expression: {e}")
+
+                else:
+                    return obj
+
+            return {k: resolve(v, k) for k, v in config.items()}
+
+        except Exception as e:
+            logger.error(f"Error resolving references in configuration: {e}")
+            raise
+
+    def merge(one, other, overwrite=True):
         """
         Merge configurations from another FrameworkAPI instance.
 
@@ -115,91 +225,96 @@ class FrameworkAPI:
                         dict1[key] = value
 
             if isinstance(other, FrameworkAPI):
-                recursive_merge(self.config, other.config)
+                out = copy.deepcopy(one)
+                recursive_merge(out.__dict__, other.__dict__)
                 logger.info("Configurations merged successfully.")
+                return out
             else:
                 raise TypeError("Argument must be an instance of FrameworkAPI")
         except Exception as e:
             logger.error(f"Error merging configurations: {e}")
             raise
 
-    def run_script(self, script_name, background=False):
+    @staticmethod
+    def _run_script(configuration=None, script_path=None, function_name=None, args=None,
+                    arg_format=None, **kwargs):
         """
-        Execute a single script based on its configuration. Optionally run a specific function in the script.
+        Execute a script based on configuration or direct parameters.
 
         Args:
-            script_name (str): Name of the script to execute (as defined in the configuration).
+            configuration (dict, optional): Configuration of the script to be run. Defaults to None.
+            script_path (str, optional): Direct path to the script file. Required if script_name is not provided.
+            function_name (str, optional): Function to execute in the script. Defaults to None.
+            args (dict, optional): Arguments to pass to the script or function. Defaults to None.
+            arg_format (str, optional): Set the format that the arguments will be passed for direct terminal calls.
 
         Raises:
-            KeyError: If the script name is not found in the configuration.
-            ValueError: If the script path is not defined.
+            ValueError: If required inputs are missing.
         """
         try:
-            scripts = self.config.get('scripts', {})
-            if script_name not in scripts:
-                raise KeyError(
-                    f"Script '{script_name}' not found in configuration.")
-
-            script_info = scripts[script_name]
-            script_path = script_info.get('path')
-            if os.path.isabs(script_path):
-                script_path = os.path.relpath(
-                    script_path, os.getcwd())
-            script_path = script_path.replace('\\', '/')
-            function_name = script_info.get('function', None)
-            args = script_info.get('args', {})
+            # Validate inputs
+            if not script_path and configuration:
+                script_path = script_path or configuration.get("path")
+                function_name = function_name or configuration.get("function")
+                args = args or configuration.get("args", {})
 
             if not script_path:
                 raise ValueError(
-                    f"Script path not defined for '{script_name}'.")
+                    "Script path is required if no configuration is provided.")
 
-            if function_name:
-                # Run a specific function in the script
-                spath = script_path.rsplit('.', 1)[0].replace(
-                    '\\', '.').replace('/', '.')
-                args_ = ', '.join([f"{k}='{v}'" if isinstance(
-                    v, str) else f"{k}={v}" for k, v in args.items()])
-                ext = os.path.splitext(script_path)[-1].lower()
-                if ext == '.py':
-                    command = [
-                        self._get_interpreter(script_path), "-c" f'import {spath} as f; f.{function_name}({args_})']
-                elif ext == '.r':
-                    command = [self._get_interpreter(script_path), "-e",
-                               f'source("{script_path}"); {function_name}({args_})']
-                elif ext == '.jl':
-                    command = [self._get_interpreter(script_path), "-e",
-                               f'include("{script_path}"); {function_name}({args_})']
-            else:
-                # Construct the command
-                command = [self._get_interpreter(
-                    script_path), script_path] if self._get_interpreter(script_path) else [script_path]
-                for key, value in args.items():
-                    command.extend([f"--{key}", str(value)])
+            # Normalize the script path
+            script_path = os.path.relpath(
+                os.path.abspath(script_path), os.getcwd()).replace('\\', '/')
 
-            logger.info(
-                f"Executing script '{script_name}' with command: {command}")
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
+            args = args or {}
 
-            for line in process.stdout:
-                print(line.decode('utf8').strip())
-                logger.info(line.decode('utf8').strip())
-            for line in process.stderr:
-                logger.error(line.decode('utf8').strip())
+            # Determine the script command
+            command = FrameworkAPI._build_command(
+                script_path, function_name, args, arg_format)
 
-            if not background:
-                process.wait()
-            if process.returncode != 0:
-                logger.error(
-                    f"Script '{script_name}' exited with code {process.returncode}.")
+            logger.info(f"Executing command: {command}")
+
+            # Execute the command
+            return FrameworkAPI._run_command(command=command, **kwargs)
         except Exception as e:
-            logger.error(f"Error executing script '{script_name}': {e}")
+            logger.error(
+                f"Error executing script '{script_path}': {e}")
             raise
 
-    def run_workflow(self, background=False):
+    def run_script(self, script_name, **kwargs):
+        """
+        Execute a script defined in the configuration using optional additional parameters.
+
+        Args:
+            script_name (str): The name of the script to execute, as defined in the configuration.
+
+        Raises:
+            ValueError: If the configuration is missing or improperly defined.
+            KeyError: If the specified script is not found in the configuration.
+            Exception: Any other exceptions that occur during script execution.
+
+        Returns:
+            Any: The result of the script execution.
+        """
+        if not self.config:
+            raise ValueError(
+                "Configuration is missing. Please provide a valid configuration.")
+
+        scripts = self.config.get("scripts", {})
+        if script_name not in scripts:
+            raise KeyError(
+                f"Script '{script_name}' is not defined in the configuration.")
+
+        try:
+            script_info = scripts[script_name]
+            runner = FrameworkAPI._run_script(script_info, **kwargs)
+            return runner
+        except Exception as e:
+            logger.error(
+                f"Failed to execute script '{script_name}': {e}", exc_info=True)
+            raise
+
+    def run_workflow(self, background=False, delay=0):
         """
         Execute all scripts defined in the workflow in sequence.
         """
@@ -207,6 +322,7 @@ class FrameworkAPI:
             workflow = self.config.get('workflow', [])
             for script_name in workflow:
                 self.run_script(script_name, background=background)
+                time.sleep(delay)
             logger.info("Workflow executed successfully.")
         except Exception as e:
             logger.error(f"Error executing workflow: {e}")
@@ -243,7 +359,183 @@ class FrameworkAPI:
         elif ext == '.jl':
             return 'julia'
         elif ext == '.exe':
-            return None
+            return 'executable'
+        elif ext == '.lnk':
+            return 'executable'
+        elif ext == '.bat':
+            return 'executable'
+        elif ext == '.sh':
+            return 'bash'
         else:
             raise ValueError(
                 f"Unsupported script type for file '{script_path}'.")
+
+    @staticmethod
+    def _build_command(script_path: str, function_name: str = None, args: dict = {}, arg_format: str = None) -> list:
+        """
+        Build the command to execute the script.
+
+        Args:
+            script_path (str): Path to the script file.
+            function_name (str, optional): Function to execute within the script.
+            args (dict, optional): Arguments to pass to the function.
+            arg_format (str, optional): Set the format that the arguments will be passed for direct terminal calls.
+
+        Returns:
+            list: The command to execute the script.
+
+        Raises:
+            ValueError: If the script extension is not supported.
+        """
+        args = args or {}
+        interpreter = FrameworkAPI._get_interpreter(script_path)
+        ext = os.path.splitext(script_path)[-1].lower()
+        system = platform.system()
+
+        if function_name:
+            if interpreter in ['executable', 'bash']:
+                raise ValueError(
+                    f"Cannot handle function name with an executable: {script_path}"
+                )
+
+            # Build command for a specific function
+            module_path = script_path.rsplit('.', 1)[0].replace(
+                '\\', '.').replace('/', '.')
+            formatted_args = ', '.join([f'{k}="{v}"' if isinstance(
+                v, str) else f"{k}={v}" for k, v in args.items()])
+
+            if ext == '.py':
+                return [interpreter, "-c",
+                        f"import {module_path} as f; f.{function_name}({formatted_args})"]
+            elif ext == '.r':
+                return [
+                    interpreter, "-e", f'source("{script_path}"); {function_name}({formatted_args})']
+            elif ext == '.jl':
+                return [
+                    interpreter, "-e", f'include("{script_path}"); {function_name}({formatted_args})']
+            else:
+                raise ValueError(
+                    f"Function execution is not supported for scripts with extension '{ext}'.")
+        else:
+            # Build command for simple script execution
+            command = [interpreter, script_path] if interpreter != 'executable' else [
+                script_path]
+
+            if not arg_format:
+                if interpreter in ['executable', 'bash']:
+                    arg_format = '-k v'
+                elif ext in ['.exe', '.lnk']:
+                    arg_format = '-k=v'
+                else:
+                    arg_format = '--k v'
+
+            for key, value in args.items():
+                if isinstance(value, str):
+                    if ' ' in value:
+                        # the string comes with quotes, which have to be removed later
+                        value = f'"{value}"'
+                elif isinstance(value, (int, float)):
+                    value = str(value)
+                elif isinstance(value, list):
+                    value = " ".join(map(str, value))
+                else:
+                    value = str(value)
+
+                if arg_format == 'k=v':
+                    command.extend([f'{key}={value}'])
+                elif arg_format == '-k=v':
+                    command.extend([f'-{key}={value}'])
+                elif arg_format == '-k v':
+                    command.extend([f"-{key}", value])
+                elif arg_format == '--k v':
+                    command.extend([f"--{key}", value])
+                elif arg_format == 'v':
+                    command.extend([value])
+                else:
+                    command.extend([f"--{key}", value])
+
+            if interpreter in ['executable']:
+                command = " ".join(
+                    [f'"{c}"' if ' ' in c else c for c in command])
+                if system == 'Linux':
+                    command = ['bash', '-c', f'echo | {command}; echo']
+                elif system == 'Windows':
+                    command = [f'echo.| {command}; echo']
+                else:
+                    command = [f'echo.| {command}; echo']
+
+            return command
+
+    @staticmethod
+    def _run_command(command: list, background: bool = False, ok_code: int = 0, error: str = 'alert') -> subprocess.Popen:
+        """
+        Run a shell command and handle its output and errors.
+
+        Args:
+            command (list | str): The command to execute, either as a list of arguments or a single string.
+            background (bool): If True, run the command in the background. Defaults to False.
+
+        Returns:
+            subprocess.Popen: The process object representing the running command.
+
+        Raises:
+            subprocess.SubprocessError: If the command exits with a non-zero return code in foreground mode.
+        """
+        logger.info(f"Executing command: {command}")
+
+        # Execute the command
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,  # Automatically decode byte streams to strings
+            bufsize=1,  # Line-buffered output for real-time streaming
+        )
+
+        def stream_output(pipe, log_func, doprint=False):
+            """
+            Stream output from a given pipe to the logger in real-time.
+            """
+            for line in iter(pipe.readline, ''):
+                line = line.strip()
+                if line:
+                    if doprint:
+                        print(line)  # Print to console
+                    log_func(line)  # Log the line
+            pipe.close()
+
+        if background:
+            logger.info("Running command in the background.")
+            threading.Thread(target=stream_output, args=(
+                process.stdout, logger.info, True), daemon=True).start()
+            threading.Thread(target=stream_output, args=(
+                process.stderr, logger.error), daemon=True).start()
+            return process  # Do not wait for output or process completion in background mode
+
+        # Capture and log output in real-time
+        try:
+            stream_output(process.stdout, logger.info, doprint=True)
+            stream_output(process.stderr, logger.error)
+
+            process.wait()
+
+            if process.returncode and process.returncode != ok_code:
+                logger.error(
+                    f"Script '{command}' exited with code {process.returncode}.")
+                raise subprocess.SubprocessError(
+                    f"Command '{command}' failed with exit code {process.returncode}."
+                )
+
+        except Exception as e:
+            if error == 'ignore':
+                pass
+            if error == 'raise':
+                process.terminate()
+                logger.error(
+                    f"An error occurred while running the command: {e}")
+                raise
+            else:
+                logger.error(
+                    f"An error occurred while running the command: {e}")
+
+        return process
