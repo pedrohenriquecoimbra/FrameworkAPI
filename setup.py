@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 from FrameworkAPI import version
 
 setup(
-    name='FrameworkAPI',
+    name='frameworkapi',
     version=version.__version__,
     url='https://github.com/pedrohenriquecoimbra/FrameworkAPI',
     description=(
