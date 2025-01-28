@@ -243,7 +243,7 @@ class FrameworkAPI:
 
         Args:
             configuration (dict, optional): Configuration of the script to be run. Defaults to None.
-            script_path (str, optional): Direct path to the script file. Required if script_name is not provided.
+            script_path (str, optional): Direct path to the script file. Required if configuration is not provided.
             function_name (str, optional): Function to execute in the script. Defaults to None.
             args (dict, optional): Arguments to pass to the script or function. Defaults to None.
             arg_format (str, optional): Set the format that the arguments will be passed for direct terminal calls.
