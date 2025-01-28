@@ -7,7 +7,7 @@ end
 
 # Function to save file after run
 function save_file_before_exit()
-    file = open("example/example_jl.txt", "w")
+    file = open("FrameworkAPI/example/example_jl.txt", "w")
     write(file, "End")
     close(file)
 end

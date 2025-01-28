@@ -1,15 +1,17 @@
 __init__:
   ntprocess: 1
   ntthreads: 1
-SCRIPTS: example
+start_point: eval:0
+stop_point: eval:import numpy; stop_point=int(numpy.sqrt(10**2))
+SCRIPTS: FrameworkAPI/example
 scripts:
   RunPython:
     path: ${SCRIPTS}/example.py
     function: calculate_and_print
     args:
-      start: 0
+      start: ${start_point}
       step: 1
-      stop: 10
+      stop: ${stop_point}
   RunJulia:
     path: ${SCRIPTS}/example.jl
     function: calculate_and_print

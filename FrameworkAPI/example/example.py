@@ -6,7 +6,7 @@ def print_values(x, y):
 
 # Function to save file after run
 def save_file_before_exit():
-    with open("example/example_py.txt", "w") as file:
+    with open("FrameworkAPI/example/example_py.txt", "w") as file:
         file.write("End")
 
 
@@ -15,6 +15,8 @@ def calculate_and_print(start, stop, step):
     x = [i for i in range(start, stop, step)]  # Generate x values
     y = [xi**2 for xi in x]  # Square each x value
     print_values(x, y)
+    import time
+    time.sleep(5)
     #save_file_before_exit()
 
 
