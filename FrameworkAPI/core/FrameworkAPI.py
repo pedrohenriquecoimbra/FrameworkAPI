@@ -314,12 +314,12 @@ class FrameworkAPI:
                 f"Failed to execute script '{script_name}': {e}", exc_info=True)
             raise
 
-    def run_workflow(self, background=False, delay=0):
+    def run_workflow(self, workflow=None, background=False, delay=0):
         """
         Execute all scripts defined in the workflow in sequence.
         """
         try:
-            workflow = self.config.get('workflow', [])
+            if not workflow: workflow = self.config.get('workflow', [])
             for script_name in workflow:
                 self.run_script(script_name, background=background)
                 time.sleep(delay)
