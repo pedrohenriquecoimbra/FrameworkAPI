@@ -458,11 +458,11 @@ class FrameworkAPI:
                 command = " ".join(
                     [f'"{c}"' if ' ' in c else c for c in command])
                 if system == 'Linux':
-                    command = ['bash', '-c', f'echo | {command}; echo']
+                    command = ['bash', '-c', f'echo | {command}']
                 elif system == 'Windows':
-                    command = [f'echo.| {command}; echo']
+                    command = [f'echo.| {command}']
                 else:
-                    command = [f'echo.| {command}; echo']
+                    command = [f'echo.| {command}']
 
             return command
 
