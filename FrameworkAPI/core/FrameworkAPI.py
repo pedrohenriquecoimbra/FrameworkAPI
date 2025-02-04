@@ -459,19 +459,19 @@ class FrameworkAPI:
                     command.extend([f"--{key}", value])
 
             if interpreter in ['executable']:
-                command = " ".join(
-                    [f'"{c}"' if ' ' in c else c for c in command])
                 if system == 'Linux':
+                    command = " ".join(
+                        [f'"{c}"' if ' ' in c else c for c in command])
                     command = ['bash', '-c', f'echo | {command}']
                 elif system == 'Windows':
-                    command = [f'echo.| {command}']
+                    command = ['echo.|'] + command
                 else:
-                    command = [f'echo.| {command}']
+                    command = ['echo.|'] + command
 
             return command
 
     @staticmethod
-    def _run_command(command: list, background: bool = False, ok_code: int = 0, error: str = 'alert') -> subprocess.Popen:
+    def _run_command(command: list, background: bool = False, ok_code: int = 0, error: str = 'alert', cwd: str = os.getcwd()) -> subprocess.Popen:
         """
         Run a shell command and handle its output and errors.
 
@@ -494,7 +494,9 @@ class FrameworkAPI:
             stderr=subprocess.PIPE,
             text=True,  # Automatically decode byte streams to strings
             bufsize=1,  # Line-buffered output for real-time streaming
-        )
+            cwd=cwd,    # Set the working directory
+            shell=True,  # Execute the command through the shell
+        ).communicate()
 
         def stream_output(pipe, log_func, doprint=False):
             """
