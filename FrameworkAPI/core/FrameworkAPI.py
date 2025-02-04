@@ -262,10 +262,6 @@ class FrameworkAPI:
                 raise ValueError(
                     "Script path is required if no configuration is provided.")
 
-            # Normalize the script path
-            script_path = os.path.relpath(
-                os.path.abspath(script_path), os.getcwd()).replace('\\', '/')
-
             args = args or {}
 
             # Determine the script command
@@ -387,6 +383,7 @@ class FrameworkAPI:
         Raises:
             ValueError: If the script extension is not supported.
         """
+        script_path = os.path.abspath(script_path).replace('\\', '/')
         args = args or {}
         interpreter = FrameworkAPI._get_interpreter(script_path)
         ext = os.path.splitext(script_path)[-1].lower()
@@ -397,9 +394,10 @@ class FrameworkAPI:
                 raise ValueError(
                     f"Cannot handle function name with an executable: {script_path}"
                 )
-
+            
             # Build command for a specific function
-            module_path = script_path.rsplit('.', 1)[0].replace(
+            module_path = os.path.relpath(
+                os.path.abspath(script_path), os.getcwd()).rsplit('.', 1)[0].replace(
                 '\\', '.').replace('/', '.')
             formatted_args = ', '.join([f'{k}="{v}"' if isinstance(
                 v, str) else f"{k}={v}" for k, v in args.items()])
@@ -418,6 +416,12 @@ class FrameworkAPI:
                     f"Function execution is not supported for scripts with extension '{ext}'.")
         else:
             # Build command for simple script execution
+            if system == 'Linux':
+                script_path = script_path.replace('\\', '/')
+            elif system == 'Windows':
+                script_path = script_path.replace('/', '\\')
+            else:
+                script_path = script_path.replace('/', '\\')
             command = [interpreter, script_path] if interpreter != 'executable' else [
                 script_path]
 
