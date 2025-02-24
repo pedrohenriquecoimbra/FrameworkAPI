@@ -1,4 +1,5 @@
 import os
+import sys
 import ast
 from string import Template
 import yaml
@@ -30,7 +31,7 @@ class FrameworkAPI:
             ValueError: If neither 'config' nor 'config_path' is provided.
         """
         self.config_path = config_path
-
+        
         # Determine configuration source
         if config:
             if isinstance(config, (list, tuple)):
@@ -49,7 +50,7 @@ class FrameworkAPI:
                          "Provide at least one configuration source.")
             raise ValueError(
                 "Configuration source is required: Pass either 'config' or 'config_path'.")
-
+        
         # Resolve references in the configuration
         self.config = self._resolve_references(self.raw_config)
 
@@ -498,43 +499,22 @@ class FrameworkAPI:
         logger.info(f"Executing command: {command}")
 
         # Execute the command
-        process = subprocess.Popen(
+        process = subprocess.run(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
             text=True,  # Automatically decode byte streams to strings
             bufsize=1,  # Line-buffered output for real-time streaming
             cwd=cwd,    # Set the working directory
             shell=True,  # Execute the command through the shell
-        ).communicate()
-
-        def stream_output(pipe, log_func, doprint=False):
-            """
-            Stream output from a given pipe to the logger in real-time.
-            """
-            for line in iter(pipe.readline, ''):
-                line = line.strip()
-                if line:
-                    if doprint:
-                        print(line)  # Print to console
-                    log_func(line)  # Log the line
-            pipe.close()
+        )
 
         if background:
             logger.info("Running command in the background.")
-            threading.Thread(target=stream_output, args=(
-                process.stdout, logger.info, True), daemon=True).start()
-            threading.Thread(target=stream_output, args=(
-                process.stderr, logger.error), daemon=True).start()
             return process  # Do not wait for output or process completion in background mode
 
         # Capture and log output in real-time
         try:
-            stream_output(process.stdout, logger.info, doprint=True)
-            stream_output(process.stderr, logger.error)
-
-            process.wait()
-
             if process.returncode and process.returncode != ok_code:
                 logger.error(
                     f"Script '{command}' exited with code {process.returncode}.")
