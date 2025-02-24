@@ -33,9 +33,15 @@ class FrameworkAPI:
 
         # Determine configuration source
         if config:
-            self.raw_config = config
+            if isinstance(config, (list, tuple)):
+                self = self._load_multiple_frameworks(config=config)
+            else:
+                self.raw_config = config
         elif config_path:
-            self.raw_config = self._load_config(raw=True)
+            if isinstance(config_path, (list, tuple)):
+                self = self._load_multiple_frameworks(config_path=config_path)
+            else:
+                self.raw_config = self._load_config(raw=True)
         elif isinstance(config, dict):
             self.raw_config = config
         else:
@@ -51,7 +57,7 @@ class FrameworkAPI:
         if log_file:
             self._setup_logging(log_file)
 
-    def load_multiple_frameworks(self, config_path=[], config=[]):
+    def _load_multiple_frameworks(self, config_path=[], config=[]):
         try:
             # Load multiple configurations from different sources
             if not config_path and not config:
@@ -62,13 +68,15 @@ class FrameworkAPI:
                 config = [config]
             for c in config_path:
                 try:
-                    self = FrameworkAPI.merge(
+                    merged = FrameworkAPI.merge(
                         self, FrameworkAPI(config_path=c))
+                    self.__dict__.update(vars(merged))  # Copy attributes over
                 except Exception as e:
                     logger.error(f"Error loading configuration from {c}: {e}")
             for c in config:
                 try:
-                    self = FrameworkAPI.merge(self, FrameworkAPI(config=c))
+                    merged = FrameworkAPI.merge(self, FrameworkAPI(config=c))
+                    self.__dict__.update(vars(merged))  # Copy attributes over
                 except Exception as e:
                     logger.error(f"Error loading configuration: {e}")
 
@@ -205,6 +213,7 @@ class FrameworkAPI:
             logger.error(f"Error resolving references in configuration: {e}")
             raise
 
+    @staticmethod
     def merge(one, other, overwrite=True):
         """
         Merge configurations from another FrameworkAPI instance.
@@ -223,10 +232,11 @@ class FrameworkAPI:
                         recursive_merge(dict1[key], value)
                     elif overwrite or key not in dict1:
                         dict1[key] = value
+                return dict1
 
             if isinstance(other, FrameworkAPI):
                 out = copy.deepcopy(one)
-                recursive_merge(out.__dict__, other.__dict__)
+                out.__dict__.update(recursive_merge(vars(out), vars(other)))
                 logger.info("Configurations merged successfully.")
                 return out
             else:
