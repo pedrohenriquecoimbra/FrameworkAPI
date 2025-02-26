@@ -116,6 +116,18 @@ class FrameworkAPI:
                 print(e)
         return {}
     
+    def _save_config(self, path, overwrite: bool = False):
+        if not os.path.exists(path) or overwrite:
+            with open(path, 'w+') as f:
+                yaml.safe_dump(self.config, f)
+            logger.info(f"Configuration saved to {path}.")
+
+    def _save_class(self, path, overwrite: bool = False):
+        if not os.path.exists(path) or overwrite:
+            with open(path, 'w+') as f:
+                yaml.safe_dump(vars(self), f)
+            logger.info(f"FrameworkAPI class saved to {path}.")
+    
     @staticmethod
     def _resolve_references(config):
         """
