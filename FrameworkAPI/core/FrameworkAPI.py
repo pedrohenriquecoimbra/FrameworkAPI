@@ -256,7 +256,7 @@ class FrameworkAPI:
             configuration (dict, optional): Configuration of the script to be run. Defaults to None.
             script_path (str, optional): Direct path to the script file. Required if configuration is not provided.
             function_name (str, optional): Function to execute in the script. Defaults to None.
-            args (dict, optional): Arguments to pass to the script or function. Defaults to None.
+            args (dict, list, tuple, optional): Arguments to pass to the script or function. Defaults to None.
             arg_format (str, optional): Set the format that the arguments will be passed for direct terminal calls.
 
         Raises:
@@ -274,6 +274,14 @@ class FrameworkAPI:
                     "Script path is required if no configuration is provided.")
 
             args = args or {}
+
+            # Convert args to dict if it's a list or tuple
+            if isinstance(args, (list, tuple)):
+                args = {f"arg{i+1}": val for i, val in enumerate(args)}
+                # Force arg_format to 'v' if args are passed as a list or tuple
+                arg_format = 'v'
+            elif not isinstance(args, dict):
+                raise TypeError("args must be a dict, list, or tuple.")
 
             # Determine the script command
             command = FrameworkAPI._build_command(
