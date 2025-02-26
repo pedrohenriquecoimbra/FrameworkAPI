@@ -31,20 +31,23 @@ class FrameworkAPI:
             ValueError: If neither 'config' nor 'config_path' is provided.
         """
         self.config_path = config_path
+        self.raw_config = {}
         
         # Determine configuration source
-        if config:
-            if isinstance(config, (list, tuple)):
-                self = self._load_multiple_frameworks(config=config)
-            else:
-                self.raw_config = config
-        elif config_path:
-            if isinstance(config_path, (list, tuple)):
-                self = self._load_multiple_frameworks(config_path=config_path)
-            else:
-                self.raw_config = self._load_config(raw=True)
-        elif isinstance(config, dict):
-            self.raw_config = config
+        if config or config_path:
+            if isinstance(config_path, str):
+                config_path = [config_path]
+            if config_path:
+                for path in config_path:
+                    self.raw_config = FrameworkAPI.merge(
+                        self.raw_config, FrameworkAPI._load_config(path, raw=True))
+
+            if isinstance(config, dict):
+                config = [config]
+            if config:
+                for cfg in config:
+                    self.raw_config = FrameworkAPI.merge(self.raw_config, cfg)
+                    self.raw_config.update(cfg)
         else:
             logger.error("Initialization failed: Both 'config' and 'config_path' are missing. "
                          "Provide at least one configuration source.")
@@ -57,36 +60,7 @@ class FrameworkAPI:
         # Set up logging if a log file is provided
         if log_file:
             self._setup_logging(log_file)
-
-    def _load_multiple_frameworks(self, config_path=[], config=[]):
-        try:
-            # Load multiple configurations from different sources
-            if not config_path and not config:
-                raise ValueError("No configurations provided to load.")
-            if isinstance(config_path, str):
-                config_path = [config_path]
-            if isinstance(config, dict):
-                config = [config]
-            for c in config_path:
-                try:
-                    merged = FrameworkAPI.merge(
-                        self, FrameworkAPI(config_path=c))
-                    self.__dict__.update(vars(merged))  # Copy attributes over
-                except Exception as e:
-                    logger.error(f"Error loading configuration from {c}: {e}")
-            for c in config:
-                try:
-                    merged = FrameworkAPI.merge(self, FrameworkAPI(config=c))
-                    self.__dict__.update(vars(merged))  # Copy attributes over
-                except Exception as e:
-                    logger.error(f"Error loading configuration: {e}")
-
-            self.config = self._resolve_references(self.raw_config)
-            logger.info("Multiple configurations loaded successfully.")
-        except Exception as e:
-            logger.error(f"Error loading multiple configurations: {e}")
-        return self
-
+    
     def _setup_logging(self, log_file):
         """
         Set up the logging configuration.
@@ -103,7 +77,8 @@ class FrameworkAPI:
         )
         logger.debug("Logging initialized.")
 
-    def _load_config(self, raw=False):
+    @staticmethod
+    def _load_config(path, raw=False, error=None):
         """
         Load and parse the YAML configuration file.
 
@@ -113,22 +88,36 @@ class FrameworkAPI:
         Returns:
             dict: Parsed configuration as a dictionary.
         """
+        if isinstance(path, FrameworkAPI):
+            path = path.config_path
         try:
-            with open(self.config_path, 'r') as f:
+            with open(path, 'r') as f:
                 raw_config = yaml.safe_load(f)
-            logger.debug(f"Configuration loaded from {self.config_path}.")
+            logger.debug(f"Configuration loaded from {path}.")
             if raw:
                 return raw_config
             else:
                 return self._resolve_references(raw_config)
-        except FileNotFoundError:
-            logger.error(f"Configuration file not found: {self.config_path}")
-            raise
+        except FileNotFoundError as e:
+            logger.error(f"Configuration file not found: {path}")
+            if error == 'ignore':
+                pass
+            elif error == 'raise':
+                raise
+            else:
+                print(e)
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML file: {e}")
-            raise
-
-    def _resolve_references(self, config):
+            if error == 'ignore':
+                pass
+            elif error == 'raise':
+                raise
+            else:
+                print(e)
+        return {}
+    
+    @staticmethod
+    def _resolve_references(config):
         """
         Resolve cross-references in the YAML configuration using string templates.
 
@@ -138,7 +127,7 @@ class FrameworkAPI:
         Returns:
             dict: Configuration with resolved references.
         """
-        config = self._resolve_shortkeys(config)
+        config = FrameworkAPI._resolve_shortkeys(config)
 
         try:
             def resolve(obj, context=None):
@@ -157,8 +146,9 @@ class FrameworkAPI:
         except Exception as e:
             logger.error(f"Error resolving references in configuration: {e}")
             raise
-
-    def _resolve_shortkeys(self, config, shortkeys=None):
+    
+    @staticmethod
+    def _resolve_shortkeys(config, shortkeys=None):
         """
         Resolve coded references in the YAML configuration using eval of string.
 
@@ -239,6 +229,10 @@ class FrameworkAPI:
                 out = copy.deepcopy(one)
                 out.__dict__.update(recursive_merge(vars(out), vars(other)))
                 logger.info("Configurations merged successfully.")
+                return out
+            elif isinstance(one, dict) and isinstance(other, dict):
+                out = recursive_merge(one, other)
+                logger.info("Dictionaries merged successfully.")
                 return out
             else:
                 raise TypeError("Argument must be an instance of FrameworkAPI")
