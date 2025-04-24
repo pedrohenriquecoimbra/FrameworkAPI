@@ -323,7 +323,12 @@ class FrameworkAPI:
 
         scripts = self.config.get("scripts", {})
         if script_name not in scripts:
-                f"Script '{script_name}' is not defined in the configuration.")
+            test_group = self._get_scripts_from_group(script_name)
+            if test_group:
+                self.run_workflow(workflow=test_group, **kwargs)
+            else:
+                raise KeyError(
+                    f"Script '{script_name}' is not defined in the configuration.")
 
         try:
             script_info = scripts[script_name]
