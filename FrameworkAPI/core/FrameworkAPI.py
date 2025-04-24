@@ -302,6 +302,9 @@ class FrameworkAPI:
                 f"Error executing script '{script_path}': {e}")
             raise
 
+    def run(self, *args, **kwargs):
+        return self.run_script(*args, **kwargs)
+    
     def run_script(self, script_name, **kwargs):
         """
         Execute a script defined in the configuration using optional additional parameters.
@@ -384,7 +387,7 @@ class FrameworkAPI:
         Raises:
             ValueError: If the file extension is unsupported.
         """
-        ext = os.path.splitext(script_path)[-1].lower()
+        ext = os.path.splitext(script_path)[-1].lower() if '.' in script_path else ''
         system = platform.system()
 
         if ext == '.py':
@@ -408,6 +411,8 @@ class FrameworkAPI:
             return 'executable'
         elif ext == '.sh':
             return 'bash'
+        elif ext == '':
+            return 'executable'
         else:
             raise ValueError(
                 f"Unsupported script type for file '{script_path}'.")
@@ -532,16 +537,18 @@ class FrameworkAPI:
             subprocess.SubprocessError: If the command exits with a non-zero return code in foreground mode.
         """
         logger.info(f"Executing command: {command}")
+        system = platform.system()
 
         # Execute the command
         process = subprocess.run(
             command,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
+            stdout=(sys.stdout if system == "Windows" else None),
+            stderr=(sys.stderr if system == "Windows" else None),
             text=True,  # Automatically decode byte streams to strings
             bufsize=1,  # Line-buffered output for real-time streaming
             cwd=cwd,    # Set the working directory
-            shell=True,  # Execute the command through the shell
+            # Execute the command through the shell
+            shell=(True if system == "Windows" else False),
         )
 
         if background:
