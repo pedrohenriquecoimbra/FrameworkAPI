@@ -323,7 +323,6 @@ class FrameworkAPI:
 
         scripts = self.config.get("scripts", {})
         if script_name not in scripts:
-            raise KeyError(
                 f"Script '{script_name}' is not defined in the configuration.")
 
         try:
@@ -334,6 +333,23 @@ class FrameworkAPI:
             logger.error(
                 f"Failed to execute script '{script_name}': {e}", exc_info=True)
             raise
+    
+    def _get_scripts_from_group(self, target):
+        """
+        Retrieves a list of scripts belonging to a specific group.
+
+        Args:
+            target (str): The prefix (group) to filter scripts by, e.g. "#GROUP".
+
+        Returns:
+            A list of scripts that belong to the given group.        
+        """
+        scripts = self.config.get("scripts", {})
+        group = []
+        for s in scripts:
+            if target == f'#{s.split("#", 1)[-1]}':
+                group += [s]
+        return group
 
     def run_workflow(self, workflow=None, background=False, delay=0):
         """
