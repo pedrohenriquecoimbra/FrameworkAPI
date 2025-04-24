@@ -305,7 +305,7 @@ class FrameworkAPI:
     def run(self, *args, **kwargs):
         return self.run_script(*args, **kwargs)
     
-    def run_script(self, script_name, **kwargs):
+    def run_script(self, script_name, error='ignore', **kwargs):
         """
         Execute a script defined in the configuration using optional additional parameters.
 
@@ -339,8 +339,11 @@ class FrameworkAPI:
             return runner
         except Exception as e:
             logger.error(
-                f"Failed to execute script '{script_name}': {e}", exc_info=True)
-            raise
+                f"Error executing script '{script_name}': {e}")
+            if error == 'ignore':
+                pass
+            else:
+                raise e
     
     def _get_scripts_from_group(self, target):
         """
