@@ -26,6 +26,9 @@ scripts:
       start: 0
       step: 1
       stop: 10
+groups:
+  PY:
+    - RunPython
 workflow:
   - RunPython
   - RunJulia
