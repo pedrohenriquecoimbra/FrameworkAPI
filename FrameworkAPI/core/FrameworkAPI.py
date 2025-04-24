@@ -93,13 +93,13 @@ class FrameworkAPI:
         try:
             with open(path, 'r') as f:
                 raw_config = yaml.safe_load(f)
-            logger.debug(f"Configuration loaded from {path}.")
+            logger.info(f"Configuration loaded from {path}.")
             if raw:
                 return raw_config
             else:
                 return self._resolve_references(raw_config)
         except FileNotFoundError as e:
-            logger.error(f"Configuration file not found: {path}")
+            logger.debug(f"Configuration file not found: {path}")
             if error == 'ignore':
                 pass
             elif error == 'raise':
