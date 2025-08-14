@@ -557,16 +557,20 @@ class FrameworkAPI:
                      error: str = 'alert', cwd: str = os.getcwd(), timeout: int = None) -> subprocess.Popen:
         """
         Run a shell command and handle its output and errors.
-
+        
         Args:
-            command (list | str): The command to execute, either as a list of arguments or a single string.
-            background (bool): If True, run the command in the background. Defaults to False.
+            command (list | str): The command to execute.
+            background (bool): If True, run the command in the background.
+            ok_code (int): Expected exit code (0 by default).
+            error (str): 'raise', 'ignore', or 'alert' on error.
+            cwd (str): Working directory.
+            timeout (int): Timeout in seconds.
 
         Returns:
-            subprocess.Popen: The process object representing the running command.
+            subprocess.CompletedProcess or subprocess.Popen or None
 
         Raises:
-            subprocess.SubprocessError: If the command exits with a non-zero return code in foreground mode.
+            subprocess.SubprocessError: If the command exits with a non-ok return code.
         """
         logger.info(f"Executing command: {command}")
         system = platform.system()
@@ -586,30 +590,26 @@ class FrameworkAPI:
             )
         except subprocess.TimeoutExpired:
             print(f"Command timed out after {timeout//60} minutes.")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error running command: {e}")
+            if error == 'raise':
+                raise
+            return None
 
         if background:
             logger.info("Running command in the background.")
             return process  # Do not wait for output or process completion in background mode
 
         # Capture and log output in real-time
-        try:
-            if process.returncode and process.returncode != ok_code:
-                logger.error(
-                    f"Script '{command}' exited with code {process.returncode}.")
-                raise subprocess.SubprocessError(
-                    f"Command '{command}' failed with exit code {process.returncode}."
-                )
-
-        except Exception as e:
-            if error == 'ignore':
-                pass
+        # Check return code only for foreground mode
+        if process.returncode != ok_code:
+            msg = f"Command '{command}' failed with exit code {process.returncode}."
+            logger.error(msg)
             if error == 'raise':
-                process.terminate()
-                logger.error(
-                    f"An error occurred while running the command: {e}")
-                raise
+                raise subprocess.SubprocessError(msg)
+            elif error == 'ignore':
+                pass
             else:
-                logger.error(
-                    f"An error occurred while running the command: {e}")
-
+                logger.warning(msg)
         return process
