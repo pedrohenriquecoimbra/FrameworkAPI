@@ -57,6 +57,9 @@ class FrameworkAPI:
         # Resolve references in the configuration
         self.config = self._resolve_references(self.raw_config)
 
+        # Resolve grouping in the configuration
+        self.config = self._resolve_grouping(self.config)
+
         # Set up logging if a log file is provided
         if log_file:
             self._setup_logging(log_file)
@@ -127,7 +130,35 @@ class FrameworkAPI:
             with open(path, 'w+') as f:
                 yaml.safe_dump(vars(self), f)
             logger.info(f"FrameworkAPI class saved to {path}.")
-    
+
+    @staticmethod
+    def _resolve_grouping(config):
+        """
+        Resolve grouping in the YAML configuration.
+
+        Args:
+            config (dict): The raw YAML configuration.
+
+        Returns:
+            dict: Configuration with resolved groups.
+        """
+        if 'groups' in config:
+            logger.info(
+                f"Groups already exist in configuration ({config['groups']}).")
+            return
+        
+        logger.info("Resolving groups in configuration.")
+        config['groups'] = []
+        try:
+            for script in config.get('scripts', {}):
+                if 'group' in script:
+                    config['groups'] += [script['group']]
+            config['groups'] = list(set(config['groups']))  # Remove duplicates
+            return config
+        except Exception as e:
+            logger.error(f"Error resolving groups in configuration: {e}")
+            raise
+
     @staticmethod
     def _resolve_references(config):
         """
