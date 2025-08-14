@@ -100,7 +100,7 @@ class FrameworkAPI:
             if raw:
                 return raw_config
             else:
-                return self._resolve_references(raw_config)
+                return FrameworkAPI._resolve_references(raw_config)
         except FileNotFoundError as e:
             logger.debug(f"Configuration file not found: {path}")
             if error == 'ignore':
