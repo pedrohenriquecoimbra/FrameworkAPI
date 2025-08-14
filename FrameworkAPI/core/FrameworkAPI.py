@@ -145,7 +145,7 @@ class FrameworkAPI:
         if 'groups' in config:
             logger.info(
                 f"Groups already exist in configuration ({config['groups']}).")
-            return
+            return config
         
         logger.info("Resolving groups in configuration.")
         config['groups'] = []
