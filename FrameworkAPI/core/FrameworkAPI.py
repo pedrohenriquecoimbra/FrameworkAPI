@@ -553,7 +553,8 @@ class FrameworkAPI:
             return command
 
     @staticmethod
-    def _run_command(command: list, background: bool = False, ok_code: int = 0, error: str = 'alert', cwd: str = os.getcwd()) -> subprocess.Popen:
+    def _run_command(command: list, background: bool = False, ok_code: int = 0, 
+                     error: str = 'alert', cwd: str = os.getcwd(), timeout: int = None) -> subprocess.Popen:
         """
         Run a shell command and handle its output and errors.
 
@@ -571,16 +572,20 @@ class FrameworkAPI:
         system = platform.system()
 
         # Execute the command
-        process = subprocess.run(
-            command,
-            stdout=(sys.stdout if system == "Windows" else None),
-            stderr=(sys.stderr if system == "Windows" else None),
-            text=True,  # Automatically decode byte streams to strings
-            bufsize=1,  # Line-buffered output for real-time streaming
-            cwd=cwd,    # Set the working directory
-            # Execute the command through the shell
-            shell=(True if system == "Windows" else False),
-        )
+        try:
+            process = subprocess.run(
+                command,
+                stdout=(sys.stdout if system == "Windows" else None),
+                stderr=(sys.stderr if system == "Windows" else None),
+                text=True,  # Automatically decode byte streams to strings
+                bufsize=1,  # Line-buffered output for real-time streaming
+                cwd=cwd,    # Set the working directory
+                # Execute the command through the shell
+                shell=(True if system == "Windows" else False),
+                timeout=timeout  # No timeout by default
+            )
+        except subprocess.TimeoutExpired:
+            print(f"Command timed out after {timeout//60} minutes.")
 
         if background:
             logger.info("Running command in the background.")
