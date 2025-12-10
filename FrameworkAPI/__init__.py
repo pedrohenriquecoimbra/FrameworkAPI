@@ -1,2 +1,2 @@
-from .core.FrameworkAPI import FrameworkAPI
+from .core.FrameworkAPI import FrameworkAPI, main
 from . import version 
