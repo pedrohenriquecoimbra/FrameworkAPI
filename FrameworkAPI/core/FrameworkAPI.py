@@ -96,7 +96,7 @@ class FrameworkAPI:
         try:
             with open(path, 'r') as f:
                 raw_config = yaml.safe_load(f)
-            logger.info(f"Configuration loaded from {path}.")
+            logger.debug(f"Configuration loaded from {path}.")
             if raw:
                 return raw_config
             else:
@@ -123,13 +123,13 @@ class FrameworkAPI:
         if not os.path.exists(path) or overwrite:
             with open(path, 'w+') as f:
                 yaml.safe_dump(self.config, f)
-            logger.info(f"Configuration saved to {path}.")
+            logger.debug(f"Configuration saved to {path}.")
 
     def _save_class(self, path, overwrite: bool = False):
         if not os.path.exists(path) or overwrite:
             with open(path, 'w+') as f:
                 yaml.safe_dump(vars(self), f)
-            logger.info(f"FrameworkAPI class saved to {path}.")
+            logger.debug(f"FrameworkAPI class saved to {path}.")
 
     @staticmethod
     def _resolve_grouping(config):
@@ -141,14 +141,9 @@ class FrameworkAPI:
 
         Returns:
             dict: Configuration with resolved groups.
-        """
-        if 'groups' in config:
-            logger.info(
-                f"Groups already exist in configuration ({config['groups']}).")
-            return config
-        
-        logger.info("Resolving groups in configuration.")
         config['groups'] = []
+        """        
+        logger.debug("Resolving groups in configuration.")
         try:
             for script in config.get('scripts', {}):
                 if 'group' in script:
@@ -271,11 +266,11 @@ class FrameworkAPI:
             if isinstance(other, FrameworkAPI):
                 out = copy.deepcopy(one)
                 out.__dict__.update(recursive_merge(vars(out), vars(other)))
-                logger.info("Configurations merged successfully.")
+                logger.debug("Configurations merged successfully.")
                 return out
             elif isinstance(one, dict) and isinstance(other, dict):
                 out = recursive_merge(one, other)
-                logger.info("Dictionaries merged successfully.")
+                logger.debug("Dictionaries merged successfully.")
                 return out
             else:
                 raise TypeError("Argument must be an instance of FrameworkAPI")
@@ -324,7 +319,7 @@ class FrameworkAPI:
             command = FrameworkAPI._build_command(
                 script_path, function_name, args, arg_format)
 
-            logger.info(f"Executing command: {command}")
+            logger.debug(f"Executing command: {command}")
 
             # Execute the command
             return FrameworkAPI._run_command(command=command, **kwargs)
@@ -399,7 +394,7 @@ class FrameworkAPI:
             for script_name in workflow:
                 self.run_script(script_name, background=background)
                 time.sleep(delay)
-            logger.info("Workflow executed successfully.")
+            logger.debug("Workflow executed successfully.")
         except Exception as e:
             logger.error(f"Error executing workflow: {e}")
             raise
@@ -572,7 +567,7 @@ class FrameworkAPI:
         Raises:
             subprocess.SubprocessError: If the command exits with a non-ok return code.
         """
-        logger.info(f"Executing command: {command}")
+        logger.debug(f"Executing command: {command}")
         system = platform.system()
 
         # Execute the command
@@ -598,7 +593,7 @@ class FrameworkAPI:
             return None
 
         if background:
-            logger.info("Running command in the background.")
+            logger.debug("Running command in the background.")
             return process  # Do not wait for output or process completion in background mode
 
         # Capture and log output in real-time
