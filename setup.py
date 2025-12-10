@@ -39,4 +39,9 @@ setup(
         'Programming Language :: Python :: 3.14',
         'Topic :: Other/Nonlisted Topic'],
     python_requires='>=3.8',
+    entry_points={
+        "console_scripts": [
+            "frameworkapi=FrameworkAPI.core.FrameworkAPI:main",
+        ],
+    },
 )
