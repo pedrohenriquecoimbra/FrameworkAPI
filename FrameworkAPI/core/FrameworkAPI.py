@@ -141,14 +141,17 @@ class FrameworkAPI:
 
         Returns:
             dict: Configuration with resolved groups.
-        config['groups'] = []
         """        
         logger.debug("Resolving groups in configuration.")
+        config['groups'] = config.get('groups', {})
         try:
-            for script in config.get('scripts', {}):
-                if 'group' in script:
-                    config['groups'] += [script['group']]
-            config['groups'] = list(set(config['groups']))  # Remove duplicates
+            for script_name, script_info in config.get('scripts', {}).items():
+                if 'group' in script_info:
+                    group = script_info['group']
+                    if group not in config['groups']:
+                        config['groups'][group] = []
+                    config['groups'][group].append(script_name)
+            config['groups'] = {k: list(set(v)) for k, v in config['groups'].items()}  # Remove duplicates
             return config
         except Exception as e:
             logger.error(f"Error resolving groups in configuration: {e}")

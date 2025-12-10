@@ -22,6 +22,7 @@ scripts:
   RunR:
     path: ${SCRIPTS}/example.r
     function: calculate_and_print
+    group: R
     args:
       start: 0
       step: 1
