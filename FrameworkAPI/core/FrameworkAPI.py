@@ -331,8 +331,11 @@ class FrameworkAPI:
                 f"Error executing script '{script_path}': {e}")
             raise
 
-    def run(self, *args, **kwargs):
-        return self.run_script(*args, **kwargs)
+    def run(self, first, *args, **kwargs):
+        if isinstance(first, (list, tuple)):
+            return self.run_workflow(first, *args, **kwargs)
+        else:
+            return self.run_script(first, *args, **kwargs)
     
     def run_script(self, script_name, error='ignore', **kwargs):
         """
@@ -388,14 +391,14 @@ class FrameworkAPI:
         group = groups.get(target, [])
         return group
 
-    def run_workflow(self, workflow=None, background=False, delay=0):
+    def run_workflow(self, workflow=None, delay=0, **kwargs):
         """
         Execute all scripts defined in the workflow in sequence.
         """
         try:
             if not workflow: workflow = self.config.get('workflow', [])
             for script_name in workflow:
-                self.run_script(script_name, background=background)
+                self.run_script(script_name, **kwargs)
                 time.sleep(delay)
             logger.debug("Workflow executed successfully.")
         except Exception as e:
