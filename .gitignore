@@ -6,3 +6,5 @@ FrameworkAPI/core/__pycache__
 FrameworkAPI.egg-info
 build
 tester.ipynb
+conda
+dist
