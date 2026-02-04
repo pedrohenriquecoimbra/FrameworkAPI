@@ -1,4 +1,4 @@
-version = "0.0.6.4"
+version = "0.0.6.7"
 __version__ = version
 full_version = version
 

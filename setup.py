@@ -42,6 +42,7 @@ setup(
     entry_points={
         "console_scripts": [
             "frameworkapi=FrameworkAPI.core.FrameworkAPI:main",
+            "frameworkapi-run=FrameworkAPI.core.FrameworkAPI:run",
         ],
     },
 )

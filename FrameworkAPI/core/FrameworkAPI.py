@@ -12,6 +12,11 @@ import time
 import copy
 logger = logging.getLogger(__name__)
 
+"""
+To do:
+- Add support for running scripts in the background.
+- Implement a method to run scripts in parallel.
+"""
 
 class FrameworkAPI:
     """
@@ -617,9 +622,43 @@ class FrameworkAPI:
         return process
 
 
+def __custom_params__(unknown_args):
+    def convert_to_number(value):
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return float(value)
+            except ValueError:
+                return value
+            
+    # Print or process unknown arguments
+    custom_params = {}
+    i = 0
+    while i < len(unknown_args):
+        logger.debug(f"Custom/unknown arguments: {unknown_args}")
+        # You can store or process these as needed, e.g.:
+        arg = unknown_args[i]
+        if arg.startswith("--"):
+            key = arg[2:]
+            # Check if the next argument is a value (not starting with '--')
+            if i + 1 < len(unknown_args) and not unknown_args[i + 1].startswith("--"):
+                custom_params[key] = convert_to_number(unknown_args[i + 1])
+                i += 1  # Skip the next argument as it's the value
+            else:
+                custom_params[key] = True  # Flag argument
+        else:
+            # Handle values for the previous key if needed
+            custom_params[key].append(convert_to_number(arg))
+            pass
+        i += 1
+    return custom_params
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run FrameworkAPI workflows.")
-    parser.add_argument("task", help="Task (or list of tasks) to run")
+    parser.add_argument("task", nargs="+",
+                        help="Task (or list of tasks) to run")
     parser.add_argument("--config", required=True, nargs="+",
                         help="Path to the config file")
     parser.add_argument("--background", default=False,
@@ -636,31 +675,46 @@ def main():
             f"Invalid verbosity level. Choose from: {valid_levels}")
         args.verbosity = "0"
     
-    # Print or process unknown arguments
-    custom_params = {}
-    i = 0
-    while i < len(unknown_args):
-        logger.debug(f"Custom/unknown arguments: {unknown_args}")
-        # You can store or process these as needed, e.g.:
-        arg = unknown_args[i]
-        if arg.startswith("--"):
-            key = arg[2:]
-            # Check if the next argument is a value (not starting with '--')
-            if i + 1 < len(unknown_args) and not unknown_args[i + 1].startswith("--"):
-                custom_params[key] = unknown_args[i + 1]
-                i += 1  # Skip the next argument as it's the value
-            else:
-                custom_params[key] = True  # Flag argument
-        else:
-            # Handle values for the previous key if needed
-            pass
-        i += 1
+    custom_params = __custom_params__(unknown_args)
 
     logging.basicConfig(level=args.verbosity.upper(),
                         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     FrameworkAPI(args.config, config=custom_params
                  ).run(args.task, background=args.background)
 
+
+def run():
+    parser = argparse.ArgumentParser(description="Run FrameworkAPI workflows.")
+    parser.add_argument("path", help="Path to script (R, Python, Julia)")
+    parser.add_argument("--function", help="Function name (optional)")
+    parser.add_argument("--background", default=False,
+                        help="Run in the background.")
+    parser.add_argument("--verbosity", default="INFO",
+                        help="Logging level (e.g., DEBUG, INFO, WARNING)")
+    # Parse known arguments and capture the rest
+    args, unknown_args = parser.parse_known_args()
+
+    # Validate logging level
+    valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    if args.verbosity.upper() not in valid_levels:
+        logger.error(
+            f"Invalid verbosity level. Choose from: {valid_levels}")
+        args.verbosity = "0"
+
+    custom_params = __custom_params__(unknown_args)
+
+    framework_confg={
+        "scripts":{
+            "task":{
+                "path": args.path,
+                "function": args.function,
+                "args": custom_params
+            }}}
+
+    logging.basicConfig(level=args.verbosity.upper(),
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    FrameworkAPI(config=framework_confg).run(
+        "task", background=args.background)
 
 if __name__ == "__main__":
     main()
